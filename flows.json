@@ -1,0 +1,483 @@
+[
+    {
+        "id": "ca9d9739e268a84d",
+        "type": "tab",
+        "label": "Flow 1",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "eb15fdde6ca0c2de",
+        "type": "ui-base",
+        "name": "My Dashboard",
+        "path": "/dashboard",
+        "appIcon": "",
+        "includeClientData": true,
+        "acceptsClientConfig": [
+            "ui-notification",
+            "ui-control"
+        ],
+        "showPathInSidebar": false,
+        "headerContent": "page",
+        "navigationStyle": "default",
+        "titleBarStyle": "default",
+        "showReconnectNotification": true,
+        "notificationDisplayTime": 1,
+        "showDisconnectNotification": true,
+        "allowInstall": false
+    },
+    {
+        "id": "6f0346e41dfbafaa",
+        "type": "ui-theme",
+        "name": "Default Theme",
+        "colors": {
+            "surface": "#ffffff",
+            "primary": "#0094CE",
+            "bgPage": "#eeeeee",
+            "groupBg": "#ffffff",
+            "groupOutline": "#cccccc"
+        },
+        "sizes": {
+            "density": "default",
+            "pagePadding": "12px",
+            "groupGap": "12px",
+            "groupBorderRadius": "4px",
+            "widgetGap": "12px"
+        }
+    },
+    {
+        "id": "535d492ce7f42825",
+        "type": "ui-page",
+        "name": "Page 1",
+        "ui": "eb15fdde6ca0c2de",
+        "path": "/page1",
+        "icon": "home",
+        "layout": "grid",
+        "theme": "6f0346e41dfbafaa",
+        "breakpoints": [
+            {
+                "name": "Default",
+                "px": 0,
+                "cols": 3
+            },
+            {
+                "name": "Tablet",
+                "px": 576,
+                "cols": 6
+            },
+            {
+                "name": "Small Desktop",
+                "px": 768,
+                "cols": 9
+            },
+            {
+                "name": "Desktop",
+                "px": 1024,
+                "cols": 12
+            }
+        ],
+        "order": 1,
+        "className": "",
+        "visible": "true",
+        "disabled": "false"
+    },
+    {
+        "id": "93b8cffcf2f4d397",
+        "type": "ui-group",
+        "name": "Monitoring",
+        "page": "535d492ce7f42825",
+        "width": 6,
+        "height": 1,
+        "order": 1,
+        "showTitle": true,
+        "className": "",
+        "visible": "true",
+        "disabled": "false",
+        "groupType": "default"
+    },
+    {
+        "id": "4e0649960b4712a9",
+        "type": "telegram bot",
+        "botname": "Cyberbully Bot",
+        "usernames": "",
+        "chatids": "",
+        "baseapiurl": "",
+        "testenvironment": false,
+        "updatemode": "none",
+        "pollinterval": 300,
+        "usesocks": false,
+        "sockshost": "",
+        "socksprotocol": "socks5",
+        "socksport": 6667,
+        "socksusername": "anonymous",
+        "sockspassword": "",
+        "bothost": "",
+        "botpath": "",
+        "localbothost": "0.0.0.0",
+        "localbotport": 8443,
+        "publicbotport": 8443,
+        "privatekey": "",
+        "certificate": "",
+        "useselfsignedcertificate": false,
+        "sslterminated": false,
+        "verboselogging": false
+    },
+    {
+        "id": "1",
+        "type": "http in",
+        "z": "ca9d9739e268a84d",
+        "name": "Chat Input",
+        "url": "/chat",
+        "method": "post",
+        "x": 220,
+        "y": 380,
+        "wires": [
+            [
+                "2"
+            ]
+        ]
+    },
+    {
+        "id": "2",
+        "type": "function",
+        "z": "ca9d9739e268a84d",
+        "name": "Format Message",
+        "func": "msg.payload = { message: msg.payload.text };\nreturn msg;",
+        "outputs": 1,
+        "x": 430,
+        "y": 380,
+        "wires": [
+            [
+                "3"
+            ]
+        ]
+    },
+    {
+        "id": "3",
+        "type": "http request",
+        "z": "ca9d9739e268a84d",
+        "name": "Flask AI",
+        "method": "POST",
+        "ret": "obj",
+        "url": "http://127.0.0.1:5000/detect",
+        "x": 640,
+        "y": 380,
+        "wires": [
+            [
+                "4"
+            ]
+        ]
+    },
+    {
+        "id": "4",
+        "type": "function",
+        "z": "ca9d9739e268a84d",
+        "name": "Decision Engine",
+        "func": "if (!msg.payload) return null;\n\nlet confidence = msg.payload.confidence || 0;\nlet alert = msg.payload.alert;\nlet label = msg.payload.label || \"unknown\";\n\nlet confidencePct = Math.round(confidence * 100);\nlet severity = confidence > 0.85 ? \"HIGH\" :\n    confidence > 0.7 ? \"MEDIUM\" : \"LOW\";\n\n// Output 1 → text\nlet textMsg = {};\ntextMsg.payload = alert\n    ? `⚠️ Cyberbullying (${label}) - ${severity} (${confidencePct}%)`\n    : \"✅ Normal\";\n\n// Output 2 → gauge\nlet gaugeMsg = {};\ngaugeMsg.payload = confidencePct;\n\n// Output 3 → chart\nlet chartMsg = {};\nchartMsg.topic = \"Confidence\";\nchartMsg.payload = confidencePct;\n\n// Output 4 → alerts\nlet alertMsg = {};\nalertMsg.payload = msg.payload;\n\n// Output 5 → HTTP response\n//msg.payload = msg.payload;\n\nreturn [textMsg, gaugeMsg, chartMsg, alertMsg, msg];",
+        "outputs": 5,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 820,
+        "y": 380,
+        "wires": [
+            [
+                "8abb09152b015eb2",
+                "310b6b20df1d8009"
+            ],
+            [
+                "5c5cda2d0f1605d9"
+            ],
+            [
+                "22a57663745deff8",
+                "15c7ab9af2503dbe"
+            ],
+            [
+                "9c0ed69c403c8ee5",
+                "3c9d8816d3863a01"
+            ],
+            [
+                "5",
+                "3ac1bf3be3def397"
+            ]
+        ]
+    },
+    {
+        "id": "5",
+        "type": "http response",
+        "z": "ca9d9739e268a84d",
+        "name": "Send Response",
+        "x": 1220,
+        "y": 760,
+        "wires": []
+    },
+    {
+        "id": "5c5cda2d0f1605d9",
+        "type": "ui-gauge",
+        "z": "ca9d9739e268a84d",
+        "name": "",
+        "group": "93b8cffcf2f4d397",
+        "order": 2,
+        "value": "payload",
+        "valueType": "msg",
+        "width": 3,
+        "height": 3,
+        "gtype": "gauge-half",
+        "gstyle": "needle",
+        "title": "Risk Label",
+        "alwaysShowTitle": false,
+        "floatingTitlePosition": "top-left",
+        "units": "%",
+        "icon": "",
+        "prefix": "",
+        "suffix": "",
+        "segments": [
+            {
+                "from": "0",
+                "color": "#5cd65c",
+                "text": "",
+                "textType": "label"
+            },
+            {
+                "from": "40",
+                "color": "#ffc800",
+                "text": "",
+                "textType": "label"
+            },
+            {
+                "from": "70",
+                "color": "#ea5353",
+                "text": "",
+                "textType": "label"
+            }
+        ],
+        "min": 0,
+        "max": "100",
+        "sizeThickness": 16,
+        "sizeGap": 4,
+        "sizeKeyThickness": 8,
+        "styleRounded": true,
+        "styleGlow": false,
+        "className": "",
+        "x": 1170,
+        "y": 500,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "22a57663745deff8",
+        "type": "ui-chart",
+        "z": "ca9d9739e268a84d",
+        "group": "93b8cffcf2f4d397",
+        "name": "",
+        "label": "Cyberbullying Confidence",
+        "order": 3,
+        "chartType": "line",
+        "category": "topic",
+        "categoryType": "msg",
+        "xAxisLabel": "Time",
+        "xAxisProperty": "",
+        "xAxisPropertyType": "timestamp",
+        "xAxisType": "time",
+        "xAxisFormat": "",
+        "xAxisFormatType": "auto",
+        "xmin": "",
+        "xmax": "",
+        "yAxisLabel": "Confidence Level",
+        "yAxisProperty": "payload",
+        "yAxisPropertyType": "msg",
+        "ymin": "0",
+        "ymax": "100",
+        "bins": 10,
+        "action": "append",
+        "stackSeries": false,
+        "pointShape": "circle",
+        "pointRadius": "8",
+        "showLegend": false,
+        "removeOlder": 1,
+        "removeOlderUnit": "3600",
+        "removeOlderPoints": "",
+        "colors": [
+            "#0095ff",
+            "#ff0000",
+            "#ff7f0e",
+            "#2ca02c",
+            "#a347e1",
+            "#d62728",
+            "#ff9896",
+            "#9467bd",
+            "#c5b0d5"
+        ],
+        "textColor": [
+            "#666666"
+        ],
+        "textColorDefault": true,
+        "gridColor": [
+            "#e5e5e5"
+        ],
+        "gridColorDefault": true,
+        "width": 6,
+        "height": 8,
+        "className": "",
+        "interpolation": "linear",
+        "x": 1210,
+        "y": 560,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "310b6b20df1d8009",
+        "type": "ui-text",
+        "z": "ca9d9739e268a84d",
+        "group": "93b8cffcf2f4d397",
+        "order": 1,
+        "width": 0,
+        "height": 0,
+        "name": "",
+        "label": "Status",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "style": false,
+        "font": "",
+        "fontSize": 16,
+        "color": "#717171",
+        "wrapText": false,
+        "className": "",
+        "value": "payload",
+        "valueType": "msg",
+        "x": 1150,
+        "y": 380,
+        "wires": []
+    },
+    {
+        "id": "817e0e7a101d8ada",
+        "type": "ui-notification",
+        "z": "ca9d9739e268a84d",
+        "ui": "eb15fdde6ca0c2de",
+        "position": "top right",
+        "colorDefault": true,
+        "color": "#000000",
+        "displayTime": "3",
+        "showCountdown": true,
+        "outputs": 1,
+        "allowDismiss": true,
+        "dismissText": "Close",
+        "allowConfirm": false,
+        "confirmText": "Confirm",
+        "raw": false,
+        "className": "",
+        "name": "",
+        "x": 1190,
+        "y": 620,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "9c0ed69c403c8ee5",
+        "type": "function",
+        "z": "ca9d9739e268a84d",
+        "name": "Notification",
+        "func": "let last = context.get(\"last\") || 0;\nlet now = Date.now();\n\nif (msg.payload.alert === true && (now - last > 5000)) {\n    context.set(\"last\", now);\n\n    let label = msg.payload.label || \"unknown\";\n    let confidence = Math.round((msg.payload.confidence || 0) * 100);\n\n    // ✅ Severity based on percentage\n    let severity = confidence > 85 ? \"HIGH\" :\n        confidence > 70 ? \"MEDIUM\" : \"LOW\";\n    \n    let severityIcon = severity === \"HIGH\" ? \"🔴\" :\n        severity === \"MEDIUM\" ? \"🟡\" : \"🟢\";\n\n    msg.payload = `⚠️ Cyberbullying detected!\nType: ${label}\nConfidence: ${confidence}%\nSeverity: ${severityIcon} ${severity}`;\n\n    return msg;\n}\nreturn null;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 970,
+        "y": 620,
+        "wires": [
+            [
+                "817e0e7a101d8ada"
+            ]
+        ]
+    },
+    {
+        "id": "3c9d8816d3863a01",
+        "type": "function",
+        "z": "ca9d9739e268a84d",
+        "name": "Telegram Alert",
+        "func": "let last = context.get(\"last\") || 0;\nlet now = Date.now();\n\nif (msg.payload.alert === true && (now - last > 5000)) {\n    context.set(\"last\", now);\n\n    let label = msg.payload.label || \"unknown\";\n    let confidence = Math.round((msg.payload.confidence || 0) * 100);\n\n    // ✅ Severity based on % (0–100)\n    let severity = confidence > 85 ? \"HIGH\" :\n        confidence > 70 ? \"MEDIUM\" : \"LOW\";\n\n    // Optional: add emoji for clarity\n    let severityIcon = severity === \"HIGH\" ? \"🔴\" :\n        severity === \"MEDIUM\" ? \"🟡\" : \"🟢\";\n\n    msg.payload = {\n        chatId: -5244241627,\n        type: \"message\",\n        content: `⚠️ Cyberbullying detected!\n\nType: ${label}\nConfidence: ${confidence}%\nSeverity: ${severityIcon} ${severity}`\n    };\n\n    return msg;\n}\nreturn null;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 940,
+        "y": 680,
+        "wires": [
+            [
+                "c2f004b35f829dc0"
+            ]
+        ]
+    },
+    {
+        "id": "c2f004b35f829dc0",
+        "type": "telegram sender",
+        "z": "ca9d9739e268a84d",
+        "name": "",
+        "bot": "4e0649960b4712a9",
+        "haserroroutput": false,
+        "outputs": 1,
+        "x": 1180,
+        "y": 680,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "8abb09152b015eb2",
+        "type": "debug",
+        "z": "ca9d9739e268a84d",
+        "name": "debug 2",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1160,
+        "y": 260,
+        "wires": []
+    },
+    {
+        "id": "15c7ab9af2503dbe",
+        "type": "debug",
+        "z": "ca9d9739e268a84d",
+        "name": "debug 1",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1220,
+        "y": 440,
+        "wires": []
+    },
+    {
+        "id": "3ac1bf3be3def397",
+        "type": "debug",
+        "z": "ca9d9739e268a84d",
+        "name": "debug 3",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1200,
+        "y": 820,
+        "wires": []
+    }
+]

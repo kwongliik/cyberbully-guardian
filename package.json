@@ -1,0 +1,12 @@
+{
+    "name": "cyberbully",
+    "description": "anti-cyberbully for telegram",
+    "version": "0.0.1",
+    "dependencies": {},
+    "node-red": {
+        "settings": {
+            "flowFile": "flows.json",
+            "credentialsFile": "flows_cred.json"
+        }
+    }
+}
