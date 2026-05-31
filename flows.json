@@ -2,8 +2,24 @@
     {
         "id": "ca9d9739e268a84d",
         "type": "tab",
-        "label": "Flow 1",
+        "label": "Cyberbully Telegram Bot",
         "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "bc82ca0970759b10",
+        "type": "tab",
+        "label": "Cyberbully Detector",
+        "disabled": true,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "92017e74486ada1b",
+        "type": "tab",
+        "label": "Backup Cyberbully Telegram",
+        "disabled": true,
         "info": "",
         "env": []
     },
@@ -97,14 +113,14 @@
         "groupType": "default"
     },
     {
-        "id": "4e0649960b4712a9",
+        "id": "8719ef4bd73a86aa",
         "type": "telegram bot",
         "botname": "Cyberbully Bot",
         "usernames": "",
         "chatids": "",
         "baseapiurl": "",
         "testenvironment": false,
-        "updatemode": "none",
+        "updatemode": "polling",
         "pollinterval": 300,
         "usesocks": false,
         "sockshost": "",
@@ -124,32 +140,25 @@
         "verboselogging": false
     },
     {
-        "id": "1",
-        "type": "http in",
-        "z": "ca9d9739e268a84d",
-        "name": "Chat Input",
-        "url": "/chat",
-        "method": "post",
-        "x": 220,
-        "y": 380,
-        "wires": [
-            [
-                "2"
-            ]
-        ]
-    },
-    {
         "id": "2",
         "type": "function",
         "z": "ca9d9739e268a84d",
-        "name": "Format Message",
-        "func": "msg.payload = { message: msg.payload.text };\nreturn msg;",
-        "outputs": 1,
-        "x": 430,
-        "y": 380,
+        "name": "Format Telegram Message",
+        "func": "msg.originalMessage = msg.originalMessage || {};\n\nlet sender =\n    msg.originalMessage.from?.username ||\n    msg.originalMessage.from?.first_name ||\n    \"unknown\";\n\nlet text =\n    msg.originalMessage.text ||\n    msg.payload.content ||\n    \"\";\n\nlet chatId =\n    msg.originalMessage.chat?.id;\n\n\n// extract recipient\n\nlet match =\n    text.match(/^@(\\w+)\\s+(.+)/);\n\nif (!match) {\n\n    node.warn(\"No recipient\");\n\n    msg.payload = {\n\n        chatId: chatId,\n        type: \"message\",\n\n        content:\n            \"Send messages like:\\n\\n@username your message\"\n\n    };\n\n    return [null, msg];\n\n}\n\nlet recipient =\n    match[1];\n\nlet actualMessage =\n    match[2];\n\n\nmsg.sender = sender;\n\nmsg.payload = {\n\n    chatId: chatId,\n\n    sender: sender,\n\n    recipient: recipient,\n\n    text: actualMessage\n\n};\n\nreturn [msg, null];",
+        "outputs": 2,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 600,
+        "y": 340,
         "wires": [
             [
                 "3"
+            ],
+            [
+                "9ebe246f12464265"
             ]
         ]
     },
@@ -161,28 +170,289 @@
         "method": "POST",
         "ret": "obj",
         "url": "http://127.0.0.1:5000/detect",
-        "x": 640,
-        "y": 380,
+        "x": 900,
+        "y": 340,
         "wires": [
             [
-                "4"
+                "9ae58e6acf7f6510",
+                "852a7ae3d1aa240a"
             ]
         ]
     },
     {
-        "id": "4",
+        "id": "3d95d4f94912dbf4",
+        "type": "telegram receiver",
+        "z": "ca9d9739e268a84d",
+        "name": "Telegram Input",
+        "bot": "8719ef4bd73a86aa",
+        "saveDataDir": "",
+        "filterCommands": false,
+        "hasinput": false,
+        "inputs": 0,
+        "handleallupdates": false,
+        "handleprocessupdates": false,
+        "x": 120,
+        "y": 160,
+        "wires": [
+            [
+                "104e6890e663efe1",
+                "5bfefb6614e67fe1"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "9ae58e6acf7f6510",
         "type": "function",
         "z": "ca9d9739e268a84d",
-        "name": "Decision Engine",
-        "func": "if (!msg.payload) return null;\n\nlet confidence = msg.payload.confidence || 0;\nlet alert = msg.payload.alert;\nlet label = msg.payload.label || \"unknown\";\n\nlet confidencePct = Math.round(confidence * 100);\nlet severity = confidence > 0.85 ? \"HIGH\" :\n    confidence > 0.7 ? \"MEDIUM\" : \"LOW\";\n\n// Output 1 → text\nlet textMsg = {};\ntextMsg.payload = alert\n    ? `⚠️ Cyberbullying (${label}) - ${severity} (${confidencePct}%)`\n    : \"✅ Normal\";\n\n// Output 2 → gauge\nlet gaugeMsg = {};\ngaugeMsg.payload = confidencePct;\n\n// Output 3 → chart\nlet chartMsg = {};\nchartMsg.topic = \"Confidence\";\nchartMsg.payload = confidencePct;\n\n// Output 4 → alerts\nlet alertMsg = {};\nalertMsg.payload = msg.payload;\n\n// Output 5 → HTTP response\n//msg.payload = msg.payload;\n\nreturn [textMsg, gaugeMsg, chartMsg, alertMsg, msg];",
-        "outputs": 5,
-        "timeout": "",
+        "name": "Think Before Send Engine",
+        "func": "let confidence = msg.payload.confidence || 0;\nlet alert = msg.payload.alert;\nlet label = msg.payload.label || \"unknown\";\nlet severity = msg.payload.severity || \"unknown\";\n\nlet confidencePct =\n    Math.round(confidence * 100);\n\nlet chatId =\n    msg.originalMessage?.chat?.id;\n\n\n// preserve values BEFORE changing payload\n\nlet recipient =\n    msg.payload.recipient;\n\nlet sender =\n    msg.payload.sender;\n\nlet originalText =\n    msg.payload.text || \"\";\n\n\n\n// SAFE MESSAGE\n\nif (!alert || confidence < 0.7) {\n\n    msg.payload = {\n\n        recipient: recipient,\n\n        sender: sender,\n\n        message: originalText\n\n    };\n\n    return [msg, null];\n}\n\n\n\n// TOXIC MESSAGE\n\nflow.set(\n\n    \"pending_\" + chatId,\n\n    {\n\n        recipient: recipient,\n\n        sender: sender,\n\n        message: originalText\n\n    }\n\n);\n\n\nmsg.payload = {\n\n    chatId: chatId,\n\n    type: \"message\",\n\n    content:\n        `⚠️ Think Before Sending\n\nSeverity: ${severity}\n\nType: ${label}\n\nConfidence: ${confidencePct}%\n\n\"${originalText}\"\n\nSend anyway?`,\n\n    options: {\n\n        reply_markup:\n\n            JSON.stringify({\n\n                inline_keyboard: [\n\n                    [\n\n                        {\n\n                            text: \"✅ YES SEND\",\n\n                            callback_data: \"SEND\"\n\n                        },\n\n                        {\n\n                            text: \"✏️ EDIT\",\n\n                            callback_data: \"EDIT\"\n\n                        }\n\n                    ]\n\n                ]\n\n            })\n\n    }\n\n};\n\nreturn [null, msg];",
+        "outputs": 2,
+        "timeout": 0,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 820,
-        "y": 380,
+        "x": 1010,
+        "y": 420,
+        "wires": [
+            [
+                "4008363652326427"
+            ],
+            [
+                "9ebe246f12464265"
+            ]
+        ]
+    },
+    {
+        "id": "c4ecf5ff563fa120",
+        "type": "telegram event",
+        "z": "ca9d9739e268a84d",
+        "name": "Callback Query",
+        "bot": "8719ef4bd73a86aa",
+        "event": "callback_query",
+        "autoanswer": false,
+        "x": 180,
+        "y": 620,
+        "wires": [
+            [
+                "d1c5bdbad560fc54"
+            ]
+        ]
+    },
+    {
+        "id": "d1c5bdbad560fc54",
+        "type": "function",
+        "z": "ca9d9739e268a84d",
+        "name": "Handle User Decision",
+        "func": "let action =\n    msg.payload.content;\n\nlet chatId =\n    msg.payload.chatId ||\n\n    msg.originalMessage?.message?.chat?.id;\n\nlet pending =\n    flow.get(\n\n        \"pending_\" + chatId\n\n    );\n\nif (!pending)\n    return null;\n\n\n\nif (action === \"SEND\") {\n\n    msg.payload = {\n\n        recipient:\n            pending.recipient,\n\n        sender:\n            pending.sender,\n\n        message:\n            pending.message\n\n    };\n\n    flow.set(\n        \"pending_\" + chatId,\n        null\n    );\n\n    return [msg, null];\n\n}\n\n\n\nif (action === \"EDIT\") {\n\n    flow.set(\n        \"pending_\" + chatId,\n        null\n    );\n\n    msg.payload = {\n\n        chatId: chatId,\n\n        type: \"message\",\n\n        content:\n            \"✏️ Please edit and resend.\"\n\n    };\n\n    return [null, msg];\n\n}\n\nreturn null;",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 420,
+        "y": 620,
+        "wires": [
+            [
+                "4008363652326427"
+            ],
+            [
+                "9ebe246f12464265"
+            ]
+        ]
+    },
+    {
+        "id": "9ebe246f12464265",
+        "type": "telegram sender",
+        "z": "ca9d9739e268a84d",
+        "name": "Telegram Sender",
+        "bot": "8719ef4bd73a86aa",
+        "haserroroutput": false,
+        "outputs": 1,
+        "x": 1050,
+        "y": 580,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "104e6890e663efe1",
+        "type": "debug",
+        "z": "ca9d9739e268a84d",
+        "name": "Debug Telegram Input",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 380,
+        "y": 140,
+        "wires": []
+    },
+    {
+        "id": "852a7ae3d1aa240a",
+        "type": "debug",
+        "z": "ca9d9739e268a84d",
+        "name": "Debug Flask AI",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1100,
+        "y": 340,
+        "wires": []
+    },
+    {
+        "id": "4008363652326427",
+        "type": "function",
+        "z": "ca9d9739e268a84d",
+        "name": "Forward To Recipient",
+        "func": "let recipient =\n    msg.payload.recipient;\n\nlet recipientChatId =\n    flow.get(\n        \"user_\" + recipient\n    );\n\n\n\nif (!recipientChatId) {\n\n    let senderChatId =\n\n        msg.originalMessage?.chat?.id ||\n\n        msg.originalMessage?.message?.chat?.id ||\n\n        msg.payload.chatId;\n\n\n\n    msg.payload = {\n\n        chatId: senderChatId,\n\n        type: \"message\",\n\n        content:\n\n            \"Recipient not registered.\"\n\n    };\n\n    return [null, msg];\n\n}\n\n\n\nmsg.payload = {\n\n    chatId:\n        recipientChatId,\n\n    type: \"message\",\n\n    content:\n\n        \"From @\" +\n\n        msg.payload.sender +\n\n        \":\\n\\n\" +\n\n        msg.payload.message\n\n};\n\nreturn [msg, null];",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 740,
+        "y": 660,
+        "wires": [
+            [
+                "9ebe246f12464265",
+                "9e28714bf251ff2f"
+            ],
+            [
+                "83bdba1a6eeff4bc"
+            ]
+        ]
+    },
+    {
+        "id": "83bdba1a6eeff4bc",
+        "type": "telegram sender",
+        "z": "ca9d9739e268a84d",
+        "name": "Telegram Sender (Error)",
+        "bot": "8719ef4bd73a86aa",
+        "haserroroutput": false,
+        "outputs": 1,
+        "x": 1050,
+        "y": 700,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "5bfefb6614e67fe1",
+        "type": "function",
+        "z": "ca9d9739e268a84d",
+        "name": "Check Register Command",
+        "func": "let text =\n    msg.originalMessage.text || \"\";\n\nif (text === \"/register\") {\n\n    return [msg, null];\n\n}\n\nreturn [null, msg];",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 300,
+        "y": 280,
+        "wires": [
+            [
+                "17ab48ad43b93bc6"
+            ],
+            [
+                "2"
+            ]
+        ]
+    },
+    {
+        "id": "17ab48ad43b93bc6",
+        "type": "function",
+        "z": "ca9d9739e268a84d",
+        "name": "Register Function",
+        "func": "let username =\n    msg.originalMessage.from.username;\n\nlet chatId =\n    msg.originalMessage.chat.id;\n\nif (!username) {\n\n    msg.payload = {\n\n        chatId: chatId,\n\n        type: \"message\",\n\n        content:\n            \"Please create a Telegram username first.\"\n\n    };\n\n    return msg;\n\n}\n\nflow.set(\n\n    \"user_\" + username,\n\n    chatId\n\n);\n\nmsg.payload = {\n\n    chatId: chatId,\n\n    type: \"message\",\n\n    content:\n\n        \"✅ Registration successful.\\n\\nUsername: @\" + username\n\n};\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 570,
+        "y": 220,
+        "wires": [
+            [
+                "ab4ce4927bec02ee"
+            ]
+        ]
+    },
+    {
+        "id": "ab4ce4927bec02ee",
+        "type": "telegram sender",
+        "z": "ca9d9739e268a84d",
+        "name": "Registration Sender",
+        "bot": "8719ef4bd73a86aa",
+        "haserroroutput": false,
+        "outputs": 1,
+        "x": 840,
+        "y": 220,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "9e28714bf251ff2f",
+        "type": "debug",
+        "z": "ca9d9739e268a84d",
+        "name": "Debug Telegram Sender",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1090,
+        "y": 640,
+        "wires": []
+    },
+    {
+        "id": "8abb09152b015eb2",
+        "type": "debug",
+        "z": "bc82ca0970759b10",
+        "name": "debug 2",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1000,
+        "y": 80,
+        "wires": []
+    },
+    {
+        "id": "463e3026bfd6425a",
+        "type": "function",
+        "z": "bc82ca0970759b10",
+        "name": "Decision Engine 2",
+        "func": "if (!msg.payload) return null;\n\nlet confidence = msg.payload.confidence || 0;\nlet alert = msg.payload.alert;\nlet label = msg.payload.label || \"unknown\";\n\nlet confidencePct = Math.round(confidence * 100);\n\nlet severity =\n    confidence > 0.90 ? \"EXTREME\" :\n        confidence > 0.75 ? \"HIGH\" :\n            confidence > 0.50 ? \"MEDIUM\" :\n                \"LOW\";\n\nmsg.confidencePct = confidencePct;\nmsg.severity = severity;\nmsg.label = label;\n\n\n// SAFE MESSAGE\nif (!alert || confidence < 0.50) {\n\n    msg.payload = {\n        chatId: msg.chatId,\n        type: \"message\",\n        content:\n            `✅ Message sent successfully.\n\nMessage:\n\"${msg.originalMessage}\"`\n    };\n\n    return [msg, null, null];\n}\n\n\n// WARNING MESSAGE\nif (confidence >= 0.50 && confidence < 0.90) {\n\n    msg.payload = {\n        chatId: msg.chatId,\n        type: \"message\",\n        content:\n            `⚠️ Think Before Sending\n\nYour message may contain cyberbullying or toxic language.\n\nDetected Type: ${label}\nRisk Level: ${severity}\nConfidence: ${confidencePct}%\n\nMessage:\n\"${msg.originalMessage}\"\n\nPlease reconsider your wording.`\n    };\n\n    return [null, msg, null];\n}\n\n\n// EXTREME TOXICITY\nif (confidence >= 0.90) {\n\n    msg.payload = {\n        chatId: msg.chatId,\n        type: \"message\",\n        content:\n            `⛔ Message Blocked\n\nYour message contains highly toxic or harmful content.\n\nDetected Type: ${label}\nConfidence: ${confidencePct}%\n\nPlease rewrite your message respectfully.`\n    };\n\n    return [null, null, msg];\n}\n\nreturn null;",
+        "outputs": 5,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 650,
+        "y": 340,
         "wires": [
             [
                 "8abb09152b015eb2",
@@ -192,8 +462,8 @@
                 "5c5cda2d0f1605d9"
             ],
             [
-                "22a57663745deff8",
-                "15c7ab9af2503dbe"
+                "15c7ab9af2503dbe",
+                "22a57663745deff8"
             ],
             [
                 "9c0ed69c403c8ee5",
@@ -206,18 +476,33 @@
         ]
     },
     {
-        "id": "5",
-        "type": "http response",
-        "z": "ca9d9739e268a84d",
-        "name": "Send Response",
-        "x": 1220,
-        "y": 760,
+        "id": "310b6b20df1d8009",
+        "type": "ui-text",
+        "z": "bc82ca0970759b10",
+        "group": "93b8cffcf2f4d397",
+        "order": 1,
+        "width": 0,
+        "height": 0,
+        "name": "",
+        "label": "Status",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "style": false,
+        "font": "",
+        "fontSize": 16,
+        "color": "#717171",
+        "wrapText": false,
+        "className": "",
+        "value": "payload",
+        "valueType": "msg",
+        "x": 990,
+        "y": 200,
         "wires": []
     },
     {
         "id": "5c5cda2d0f1605d9",
         "type": "ui-gauge",
-        "z": "ca9d9739e268a84d",
+        "z": "bc82ca0970759b10",
         "name": "",
         "group": "93b8cffcf2f4d397",
         "order": 2,
@@ -262,16 +547,32 @@
         "styleRounded": true,
         "styleGlow": false,
         "className": "",
-        "x": 1170,
-        "y": 500,
+        "x": 1010,
+        "y": 320,
         "wires": [
             []
         ]
     },
     {
+        "id": "15c7ab9af2503dbe",
+        "type": "debug",
+        "z": "bc82ca0970759b10",
+        "name": "debug 1",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1060,
+        "y": 260,
+        "wires": []
+    },
+    {
         "id": "22a57663745deff8",
         "type": "ui-chart",
-        "z": "ca9d9739e268a84d",
+        "z": "bc82ca0970759b10",
         "group": "93b8cffcf2f4d397",
         "name": "",
         "label": "Cyberbullying Confidence",
@@ -324,40 +625,81 @@
         "height": 8,
         "className": "",
         "interpolation": "linear",
-        "x": 1210,
-        "y": 560,
+        "x": 1050,
+        "y": 380,
         "wires": [
             []
         ]
     },
     {
-        "id": "310b6b20df1d8009",
-        "type": "ui-text",
-        "z": "ca9d9739e268a84d",
-        "group": "93b8cffcf2f4d397",
-        "order": 1,
-        "width": 0,
-        "height": 0,
-        "name": "",
-        "label": "Status",
-        "format": "{{msg.payload}}",
-        "layout": "row-spread",
-        "style": false,
-        "font": "",
-        "fontSize": 16,
-        "color": "#717171",
-        "wrapText": false,
-        "className": "",
-        "value": "payload",
-        "valueType": "msg",
-        "x": 1150,
-        "y": 380,
+        "id": "9c0ed69c403c8ee5",
+        "type": "function",
+        "z": "bc82ca0970759b10",
+        "name": "Notification",
+        "func": "let last = context.get(\"last\") || 0;\nlet now = Date.now();\n\nif (msg.payload.alert === true && (now - last > 5000)) {\n    context.set(\"last\", now);\n\n    let label = msg.payload.label || \"unknown\";\n    let confidence = Math.round((msg.payload.confidence || 0) * 100);\n\n    // ✅ Severity based on percentage\n    let severity = confidence > 85 ? \"HIGH\" :\n        confidence > 70 ? \"MEDIUM\" : \"LOW\";\n    \n    let severityIcon = severity === \"HIGH\" ? \"🔴\" :\n        severity === \"MEDIUM\" ? \"🟡\" : \"🟢\";\n\n    msg.payload = `⚠️ Cyberbullying detected!\nType: ${label}\nConfidence: ${confidence}%\nSeverity: ${severityIcon} ${severity}`;\n\n    return msg;\n}\nreturn null;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 810,
+        "y": 440,
+        "wires": [
+            [
+                "817e0e7a101d8ada"
+            ]
+        ]
+    },
+    {
+        "id": "3c9d8816d3863a01",
+        "type": "function",
+        "z": "bc82ca0970759b10",
+        "name": "Telegram Alert",
+        "func": "let last = context.get(\"last\") || 0;\nlet now = Date.now();\n\nif (msg.payload.alert === true && (now - last > 5000)) {\n    context.set(\"last\", now);\n\n    let label = msg.payload.label || \"unknown\";\n    let confidence = Math.round((msg.payload.confidence || 0) * 100);\n\n    // ✅ Severity based on % (0–100)\n    let severity = confidence > 85 ? \"HIGH\" :\n        confidence > 70 ? \"MEDIUM\" : \"LOW\";\n\n    // Optional: add emoji for clarity\n    let severityIcon = severity === \"HIGH\" ? \"🔴\" :\n        severity === \"MEDIUM\" ? \"🟡\" : \"🟢\";\n\n    msg.payload = {\n        chatId: -5244241627,\n        type: \"message\",\n        content: `⚠️ Cyberbullying detected!\n\nType: ${label}\nConfidence: ${confidence}%\nSeverity: ${severityIcon} ${severity}`\n    };\n\n    return msg;\n}\nreturn null;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 800,
+        "y": 500,
+        "wires": [
+            [
+                "c2f004b35f829dc0"
+            ]
+        ]
+    },
+    {
+        "id": "5",
+        "type": "http response",
+        "z": "bc82ca0970759b10",
+        "name": "Send Response",
+        "x": 1060,
+        "y": 580,
+        "wires": []
+    },
+    {
+        "id": "3ac1bf3be3def397",
+        "type": "debug",
+        "z": "bc82ca0970759b10",
+        "name": "debug 3",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1040,
+        "y": 640,
         "wires": []
     },
     {
         "id": "817e0e7a101d8ada",
         "type": "ui-notification",
-        "z": "ca9d9739e268a84d",
+        "z": "bc82ca0970759b10",
         "ui": "eb15fdde6ca0c2de",
         "position": "top right",
         "colorDefault": true,
@@ -372,112 +714,266 @@
         "raw": false,
         "className": "",
         "name": "",
-        "x": 1190,
-        "y": 620,
+        "x": 1030,
+        "y": 440,
         "wires": [
             []
-        ]
-    },
-    {
-        "id": "9c0ed69c403c8ee5",
-        "type": "function",
-        "z": "ca9d9739e268a84d",
-        "name": "Notification",
-        "func": "let last = context.get(\"last\") || 0;\nlet now = Date.now();\n\nif (msg.payload.alert === true && (now - last > 5000)) {\n    context.set(\"last\", now);\n\n    let label = msg.payload.label || \"unknown\";\n    let confidence = Math.round((msg.payload.confidence || 0) * 100);\n\n    // ✅ Severity based on percentage\n    let severity = confidence > 85 ? \"HIGH\" :\n        confidence > 70 ? \"MEDIUM\" : \"LOW\";\n    \n    let severityIcon = severity === \"HIGH\" ? \"🔴\" :\n        severity === \"MEDIUM\" ? \"🟡\" : \"🟢\";\n\n    msg.payload = `⚠️ Cyberbullying detected!\nType: ${label}\nConfidence: ${confidence}%\nSeverity: ${severityIcon} ${severity}`;\n\n    return msg;\n}\nreturn null;",
-        "outputs": 1,
-        "timeout": 0,
-        "noerr": 0,
-        "initialize": "",
-        "finalize": "",
-        "libs": [],
-        "x": 970,
-        "y": 620,
-        "wires": [
-            [
-                "817e0e7a101d8ada"
-            ]
-        ]
-    },
-    {
-        "id": "3c9d8816d3863a01",
-        "type": "function",
-        "z": "ca9d9739e268a84d",
-        "name": "Telegram Alert",
-        "func": "let last = context.get(\"last\") || 0;\nlet now = Date.now();\n\nif (msg.payload.alert === true && (now - last > 5000)) {\n    context.set(\"last\", now);\n\n    let label = msg.payload.label || \"unknown\";\n    let confidence = Math.round((msg.payload.confidence || 0) * 100);\n\n    // ✅ Severity based on % (0–100)\n    let severity = confidence > 85 ? \"HIGH\" :\n        confidence > 70 ? \"MEDIUM\" : \"LOW\";\n\n    // Optional: add emoji for clarity\n    let severityIcon = severity === \"HIGH\" ? \"🔴\" :\n        severity === \"MEDIUM\" ? \"🟡\" : \"🟢\";\n\n    msg.payload = {\n        chatId: -5244241627,\n        type: \"message\",\n        content: `⚠️ Cyberbullying detected!\n\nType: ${label}\nConfidence: ${confidence}%\nSeverity: ${severityIcon} ${severity}`\n    };\n\n    return msg;\n}\nreturn null;",
-        "outputs": 1,
-        "timeout": 0,
-        "noerr": 0,
-        "initialize": "",
-        "finalize": "",
-        "libs": [],
-        "x": 940,
-        "y": 680,
-        "wires": [
-            [
-                "c2f004b35f829dc0"
-            ]
         ]
     },
     {
         "id": "c2f004b35f829dc0",
         "type": "telegram sender",
-        "z": "ca9d9739e268a84d",
-        "name": "",
-        "bot": "4e0649960b4712a9",
+        "z": "bc82ca0970759b10",
+        "name": "Telegram Sender",
+        "bot": "8719ef4bd73a86aa",
         "haserroroutput": false,
         "outputs": 1,
-        "x": 1180,
-        "y": 680,
+        "x": 1030,
+        "y": 500,
         "wires": [
             []
         ]
     },
     {
-        "id": "8abb09152b015eb2",
-        "type": "debug",
-        "z": "ca9d9739e268a84d",
-        "name": "debug 2",
-        "active": true,
-        "tosidebar": true,
-        "console": false,
-        "tostatus": false,
-        "complete": "false",
-        "statusVal": "",
-        "statusType": "auto",
-        "x": 1160,
-        "y": 260,
-        "wires": []
+        "id": "6544a79beb889a93",
+        "type": "http request",
+        "z": "bc82ca0970759b10",
+        "name": "Flask AI",
+        "method": "POST",
+        "ret": "obj",
+        "url": "http://127.0.0.1:5000/detect",
+        "x": 440,
+        "y": 340,
+        "wires": [
+            [
+                "463e3026bfd6425a"
+            ]
+        ]
     },
     {
-        "id": "15c7ab9af2503dbe",
-        "type": "debug",
-        "z": "ca9d9739e268a84d",
-        "name": "debug 1",
-        "active": true,
-        "tosidebar": true,
-        "console": false,
-        "tostatus": false,
-        "complete": "false",
-        "statusVal": "",
-        "statusType": "auto",
-        "x": 1220,
+        "id": "85017148a869d3a2",
+        "type": "http in",
+        "z": "bc82ca0970759b10",
+        "name": "Chat Input",
+        "url": "/chat",
+        "method": "post",
+        "x": 60,
+        "y": 340,
+        "wires": [
+            [
+                "928308afcd814d15"
+            ]
+        ]
+    },
+    {
+        "id": "928308afcd814d15",
+        "type": "function",
+        "z": "bc82ca0970759b10",
+        "name": "Format Message",
+        "func": "msg.payload = {\n    message: msg.payload.content\n};\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 250,
+        "y": 340,
+        "wires": [
+            [
+                "6544a79beb889a93"
+            ]
+        ]
+    },
+    {
+        "id": "4",
+        "type": "function",
+        "z": "bc82ca0970759b10",
+        "name": "Decision Engine",
+        "func": "if (!msg.payload) return null;\n\nlet confidence = msg.payload.confidence || 0;\nlet alert = msg.payload.alert;\nlet label = msg.payload.label || \"unknown\";\n\nlet confidencePct = Math.round(confidence * 100);\nlet severity = confidence > 0.85 ? \"HIGH\" :\n    confidence > 0.7 ? \"MEDIUM\" : \"LOW\";\n\n// Output 1 → text\nlet textMsg = {};\ntextMsg.payload = alert\n    ? `⚠️ Cyberbullying (${label}) - ${severity} (${confidencePct}%)`\n    : \"✅ Normal\";\n\n// Output 2 → gauge\nlet gaugeMsg = {};\ngaugeMsg.payload = confidencePct;\n\n// Output 3 → chart\nlet chartMsg = {};\nchartMsg.topic = \"Confidence\";\nchartMsg.payload = confidencePct;\n\n// Output 4 → alerts\nlet alertMsg = {};\nalertMsg.payload = msg.payload;\n\n// Output 5 → HTTP response\n//msg.payload = msg.payload;\n\nreturn [textMsg, gaugeMsg, chartMsg, alertMsg, msg];",
+        "outputs": 5,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 660,
+        "y": 160,
+        "wires": [
+            [],
+            [],
+            [],
+            [],
+            []
+        ]
+    },
+    {
+        "id": "97d7c684b16943a0",
+        "type": "function",
+        "z": "92017e74486ada1b",
+        "name": "Format Telegram Message",
+        "func": "msg.originalMessage = msg.originalMessage || {};\n\nlet sender =\n    msg.originalMessage.from?.username ||\n    msg.originalMessage.from?.first_name ||\n    \"unknown\";\n\n// Get original Telegram message text\nlet messageText =\n    msg.originalMessage.text ||\n    msg.payload.content ||\n    \"\";\n\n// Get Telegram chat ID\nlet chatId =\n    msg.originalMessage.chat?.id;\n\n// Store username separately if needed\nmsg.username = sender;\n\n// Build payload for Flask\nmsg.payload = {\n    chatId: chatId,\n    text: messageText,\n    username: sender\n};\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 620,
+        "y": 60,
+        "wires": [
+            [
+                "887d80d4b8d171db"
+            ]
+        ]
+    },
+    {
+        "id": "887d80d4b8d171db",
+        "type": "http request",
+        "z": "92017e74486ada1b",
+        "name": "Flask AI",
+        "method": "POST",
+        "ret": "obj",
+        "url": "http://127.0.0.1:5000/detect",
+        "x": 860,
+        "y": 60,
+        "wires": [
+            [
+                "51dcea61a9007ec4",
+                "dfe640f0ebcbfd4d"
+            ]
+        ]
+    },
+    {
+        "id": "55557ab3adf2de6e",
+        "type": "telegram receiver",
+        "z": "92017e74486ada1b",
+        "name": "Telegram Input",
+        "bot": "8719ef4bd73a86aa",
+        "saveDataDir": "",
+        "filterCommands": false,
+        "hasinput": false,
+        "inputs": 0,
+        "handleallupdates": false,
+        "handleprocessupdates": false,
+        "x": 320,
+        "y": 60,
+        "wires": [
+            [
+                "97d7c684b16943a0",
+                "8e2b127def9693e1"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "51dcea61a9007ec4",
+        "type": "function",
+        "z": "92017e74486ada1b",
+        "name": "Think Before Send Engine",
+        "func": "let confidence = msg.payload.confidence || 0;\nlet alert = msg.payload.alert;\nlet label = msg.payload.label || \"unknown\";\nlet severity = msg.payload.severity || \"unknown\";\nlet confidencePct = Math.round(confidence * 100);\n\n// Get chat ID correctly\nlet chatId =\n    msg.originalMessage?.chat?.id;\n\n// Get original message correctly\nlet originalText =\n    msg.originalMessage?.text ||\n    \"unknown message\";\n\n\n// SAFE MESSAGE\n\nif (!alert || confidence < 0.7) {\n\n    msg.payload = {\n        chatId: chatId,\n        type: \"message\",\n        content:\n            `✅ Message approved and sent.\n\n\"${originalText}\"`\n    };\n\n    return [msg, null];\n}\n\n\n\n// TOXIC MESSAGE\n\nmsg.payload = {\n    chatId: chatId,\n    type: \"message\",\n\n    content:\n        `⚠️ Think Before Sending\n\nYour message may contain harmful language.\n\nSeverity: ${severity}\nType: ${label}\nConfidence: ${confidencePct}%\n\n\"${originalText}\"\n\nDo you still want to send this message?`,\n\n    options: {\n        reply_markup: JSON.stringify({\n            inline_keyboard: [[\n                {\n                    text: \"✅ YES SEND\",\n                    callback_data: \"SEND\"\n                },\n                {\n                    text: \"✏️ EDIT MESSAGE\",\n                    callback_data: \"EDIT\"\n                }\n            ]]\n        })\n    }\n};\n\n\nflow.set(\n    \"pending_\" + chatId,\n    originalText\n);\n\nreturn [null, msg];",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 690,
+        "y": 300,
+        "wires": [
+            [
+                "146747575418ae97"
+            ],
+            [
+                "146747575418ae97"
+            ]
+        ]
+    },
+    {
+        "id": "94979abd5468d0f8",
+        "type": "telegram event",
+        "z": "92017e74486ada1b",
+        "name": "Telegram Event",
+        "bot": "8719ef4bd73a86aa",
+        "event": "callback_query",
+        "autoanswer": false,
+        "x": 400,
+        "y": 460,
+        "wires": [
+            [
+                "d18f8bbbd5d26f97"
+            ]
+        ]
+    },
+    {
+        "id": "d18f8bbbd5d26f97",
+        "type": "function",
+        "z": "92017e74486ada1b",
+        "name": "Handle User Decision",
+        "func": "let action = msg.payload.content;\n\nlet chatId = msg.payload.chatId;\n\nlet savedMessage =\n    flow.get(\n        \"pending_\" + chatId\n    );\n\nif (action === \"SEND\") {\n\n    msg.payload = {\n        chatId: chatId,\n        type: \"message\",\n        content: savedMessage\n    };\n\n    return [msg, null];\n\n}\n\nif (action === \"EDIT\") {\n\n    flow.set(\n        \"pending_\" + chatId,\n        null\n    );\n\n    msg.payload = {\n        chatId: chatId,\n        type: \"message\",\n        content:\n            \"✏️ Please edit and resend.\"\n    };\n\n    return [null, msg];\n\n}\n\nreturn null;",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 700,
+        "y": 460,
+        "wires": [
+            [
+                "146747575418ae97"
+            ],
+            [
+                "146747575418ae97"
+            ]
+        ]
+    },
+    {
+        "id": "146747575418ae97",
+        "type": "telegram sender",
+        "z": "92017e74486ada1b",
+        "name": "Telegram Sender",
+        "bot": "8719ef4bd73a86aa",
+        "haserroroutput": false,
+        "outputs": 1,
+        "x": 1030,
         "y": 440,
-        "wires": []
+        "wires": [
+            []
+        ]
     },
     {
-        "id": "3ac1bf3be3def397",
+        "id": "8e2b127def9693e1",
         "type": "debug",
-        "z": "ca9d9739e268a84d",
-        "name": "debug 3",
+        "z": "92017e74486ada1b",
+        "name": "Debug Telegram Input",
         "active": true,
         "tosidebar": true,
         "console": false,
         "tostatus": false,
-        "complete": "false",
+        "complete": "true",
+        "targetType": "full",
         "statusVal": "",
         "statusType": "auto",
-        "x": 1200,
-        "y": 820,
+        "x": 600,
+        "y": 140,
+        "wires": []
+    },
+    {
+        "id": "dfe640f0ebcbfd4d",
+        "type": "debug",
+        "z": "92017e74486ada1b",
+        "name": "Debug Flask AI",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1060,
+        "y": 180,
         "wires": []
     }
 ]
