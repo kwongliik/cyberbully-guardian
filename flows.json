@@ -2,8 +2,8 @@
     {
         "id": "ca9d9739e268a84d",
         "type": "tab",
-        "label": "Cyberbully Telegram Bot",
-        "disabled": false,
+        "label": "Backup Cyberbully Telegram",
+        "disabled": true,
         "info": "",
         "env": []
     },
@@ -20,6 +20,14 @@
         "type": "tab",
         "label": "Backup Cyberbully Telegram",
         "disabled": true,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "e387e4efb3863adb",
+        "type": "tab",
+        "label": "Cyberbully Telegram",
+        "disabled": false,
         "info": "",
         "env": []
     },
@@ -974,6 +982,290 @@
         "statusType": "auto",
         "x": 1060,
         "y": 180,
+        "wires": []
+    },
+    {
+        "id": "0a06fe42ad9c9a13",
+        "type": "function",
+        "z": "e387e4efb3863adb",
+        "name": "Format Telegram Message",
+        "func": "msg.originalMessage = msg.originalMessage || {};\n\nlet sender =\n    msg.originalMessage.from?.username ||\n    msg.originalMessage.from?.first_name ||\n    \"unknown\";\n\nlet text =\n    msg.originalMessage.text ||\n    msg.payload.content ||\n    \"\";\n\nlet chatId =\n    msg.originalMessage.chat?.id;\n\n\n// extract recipient\n\nlet match =\n    text.match(/^@(\\w+)\\s+(.+)/);\n\nif (!match) {\n\n    node.warn(\"No recipient\");\n\n    msg.payload = {\n\n        chatId: chatId,\n        type: \"message\",\n\n        content:\n            \"Send messages like:\\n\\n@username your message\"\n\n    };\n\n    return [null, msg];\n\n}\n\nlet recipient =\n    match[1];\n\nlet actualMessage =\n    match[2];\n\n\nmsg.sender = sender;\n\nmsg.payload = {\n\n    chatId: chatId,\n\n    sender: sender,\n\n    recipient: recipient,\n\n    text: actualMessage\n\n};\n\nreturn [msg, null];",
+        "outputs": 2,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 580,
+        "y": 260,
+        "wires": [
+            [
+                "cec884abceac3c84"
+            ],
+            [
+                "adcbc0e641515045"
+            ]
+        ]
+    },
+    {
+        "id": "cec884abceac3c84",
+        "type": "http request",
+        "z": "e387e4efb3863adb",
+        "name": "Flask AI",
+        "method": "POST",
+        "ret": "obj",
+        "url": "http://127.0.0.1:5000/detect",
+        "x": 880,
+        "y": 260,
+        "wires": [
+            [
+                "1acbc064e9a96f6f",
+                "81250354f331f04f"
+            ]
+        ]
+    },
+    {
+        "id": "01d7860f84d2d32e",
+        "type": "telegram receiver",
+        "z": "e387e4efb3863adb",
+        "name": "Telegram Input",
+        "bot": "8719ef4bd73a86aa",
+        "saveDataDir": "",
+        "filterCommands": false,
+        "hasinput": false,
+        "inputs": 0,
+        "handleallupdates": false,
+        "handleprocessupdates": false,
+        "x": 100,
+        "y": 80,
+        "wires": [
+            [
+                "fe791f079d8d0d4c",
+                "50d7225c025a9313"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "1acbc064e9a96f6f",
+        "type": "function",
+        "z": "e387e4efb3863adb",
+        "name": "Think Before Send Engine",
+        "func": "let confidence = msg.payload.confidence || 0;\nlet alert = msg.payload.alert;\nlet label = msg.payload.label || \"unknown\";\nlet severity = msg.payload.severity || \"unknown\";\n\nlet confidencePct =\n    Math.round(confidence * 100);\n\nlet chatId =\n    msg.originalMessage?.chat?.id;\n\n\n// preserve values BEFORE changing payload\n\nlet recipient =\n    msg.payload.recipient;\n\nlet sender =\n    msg.payload.sender;\n\nlet originalText =\n    msg.payload.text || \"\";\n\n\n\n// SAFE MESSAGE\n\nif (!alert || confidence < 0.7) {\n\n    msg.payload = {\n\n        recipient: recipient,\n\n        sender: sender,\n\n        message: originalText\n\n    };\n\n    return [msg, null];\n}\n\n\n\n// TOXIC MESSAGE\n\nlet pending =\n    global.get(\"pendingMessages\") || {};\n\npending[chatId] = {\n\n    recipient: recipient,\n\n    sender: sender,\n\n    message: originalText\n\n};\n\nglobal.set(\n    \"pendingMessages\",\n    pending\n);\n\n\nmsg.payload = {\n\n    chatId: chatId,\n\n    type: \"message\",\n\n    content:\n        `⚠️ Think Before Sending\n\nSeverity: ${severity}\n\nType: ${label}\n\nConfidence: ${confidencePct}%\n\n\"${originalText}\"\n\nSend anyway?`,\n\n    options: {\n\n        reply_markup:\n\n            JSON.stringify({\n\n                inline_keyboard: [\n\n                    [\n\n                        {\n\n                            text: \"✅ YES SEND\",\n\n                            callback_data: \"SEND\"\n\n                        },\n\n                        {\n\n                            text: \"✏️ EDIT\",\n\n                            callback_data: \"EDIT\"\n\n                        }\n\n                    ]\n\n                ]\n\n            })\n\n    }\n\n};\n\nreturn [null, msg];",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 990,
+        "y": 340,
+        "wires": [
+            [
+                "27032f17e23ce682"
+            ],
+            [
+                "adcbc0e641515045"
+            ]
+        ]
+    },
+    {
+        "id": "492967b9dc44568f",
+        "type": "telegram event",
+        "z": "e387e4efb3863adb",
+        "name": "Callback Query",
+        "bot": "8719ef4bd73a86aa",
+        "event": "callback_query",
+        "autoanswer": false,
+        "x": 160,
+        "y": 540,
+        "wires": [
+            [
+                "55ad2381cd2aa752"
+            ]
+        ]
+    },
+    {
+        "id": "55ad2381cd2aa752",
+        "type": "function",
+        "z": "e387e4efb3863adb",
+        "name": "Handle User Decision",
+        "func": "let action =\n    msg.payload.content;\n\nlet chatId =\n    msg.payload.chatId ||\n\n    msg.originalMessage?.message?.chat?.id;\n\n\n/* Get pending messages from global context */\n\nlet pendingMessages =\n    global.get(\n        \"pendingMessages\"\n    ) || {};\n\n\nlet pending =\n    pendingMessages[chatId];\n\n\nif (!pending)\n    return null;\n\n\n\n/* USER PRESSED SEND */\n\nif (action === \"SEND\") {\n\n    msg.payload = {\n\n        recipient:\n            pending.recipient,\n\n        sender:\n            pending.sender,\n\n        message:\n            pending.message\n\n    };\n\n\n    /* Remove pending record */\n\n    delete pendingMessages[chatId];\n\n    global.set(\n        \"pendingMessages\",\n        pendingMessages\n    );\n\n    return [msg, null];\n\n}\n\n\n\n/* USER PRESSED EDIT */\n\nif (action === \"EDIT\") {\n\n    /* Remove pending record */\n\n    delete pendingMessages[chatId];\n\n    global.set(\n        \"pendingMessages\",\n        pendingMessages\n    );\n\n    msg.payload = {\n\n        chatId: chatId,\n\n        type: \"message\",\n\n        content:\n            \"✏️ Please edit and resend.\"\n\n    };\n\n    return [null, msg];\n\n}\n\n\nreturn null;",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 400,
+        "y": 540,
+        "wires": [
+            [
+                "27032f17e23ce682"
+            ],
+            [
+                "adcbc0e641515045"
+            ]
+        ]
+    },
+    {
+        "id": "adcbc0e641515045",
+        "type": "telegram sender",
+        "z": "e387e4efb3863adb",
+        "name": "Telegram Sender",
+        "bot": "8719ef4bd73a86aa",
+        "haserroroutput": false,
+        "outputs": 1,
+        "x": 1030,
+        "y": 500,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "fe791f079d8d0d4c",
+        "type": "debug",
+        "z": "e387e4efb3863adb",
+        "name": "Debug Telegram Input",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 360,
+        "y": 60,
+        "wires": []
+    },
+    {
+        "id": "81250354f331f04f",
+        "type": "debug",
+        "z": "e387e4efb3863adb",
+        "name": "Debug Flask AI",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1080,
+        "y": 260,
+        "wires": []
+    },
+    {
+        "id": "27032f17e23ce682",
+        "type": "function",
+        "z": "e387e4efb3863adb",
+        "name": "Forward To Recipient",
+        "func": "let recipient =\n    msg.payload.recipient;\n\n\n/* Get registered users */\n\nlet users =\n    global.get(\n        \"registeredUsers\"\n    ) || {};\n\n\n/* Find recipient chat ID */\n\nlet recipientChatId =\n    users[recipient];\n\n\n\nif (!recipientChatId) {\n\n    let senderChatId =\n\n        msg.originalMessage?.chat?.id ||\n\n        msg.originalMessage?.message?.chat?.id ||\n\n        msg.payload.chatId;\n\n\n\n    msg.payload = {\n\n        chatId: senderChatId,\n\n        type: \"message\",\n\n        content:\n\n            \"Recipient not registered.\"\n\n    };\n\n    return [null, msg];\n\n}\n\n\n\n/* Forward message */\n\nmsg.payload = {\n\n    chatId:\n        recipientChatId,\n\n    type: \"message\",\n\n    content:\n\n        \"From @\" +\n\n        msg.payload.sender +\n\n        \":\\n\\n\" +\n\n        msg.payload.message\n\n};\n\n\nreturn [msg, null];",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 720,
+        "y": 580,
+        "wires": [
+            [
+                "adcbc0e641515045",
+                "6f0da693bfd815dd"
+            ],
+            [
+                "8a689ee05c3613cb"
+            ]
+        ]
+    },
+    {
+        "id": "8a689ee05c3613cb",
+        "type": "telegram sender",
+        "z": "e387e4efb3863adb",
+        "name": "Telegram Sender (Error)",
+        "bot": "8719ef4bd73a86aa",
+        "haserroroutput": false,
+        "outputs": 1,
+        "x": 1030,
+        "y": 620,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "50d7225c025a9313",
+        "type": "function",
+        "z": "e387e4efb3863adb",
+        "name": "Check Register Command",
+        "func": "let text =\n    msg.originalMessage.text || \"\";\n\nif (text === \"/register\") {\n\n    return [msg, null];\n\n}\n\nreturn [null, msg];",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 280,
+        "y": 200,
+        "wires": [
+            [
+                "f3eac5862fcaed20"
+            ],
+            [
+                "0a06fe42ad9c9a13"
+            ]
+        ]
+    },
+    {
+        "id": "f3eac5862fcaed20",
+        "type": "function",
+        "z": "e387e4efb3863adb",
+        "name": "Register Function",
+        "func": "let username =\n    msg.originalMessage.from.username;\n\nlet chatId =\n    msg.originalMessage.chat.id;\n\nif (!username) {\n\n    msg.payload = {\n\n        chatId: chatId,\n\n        type: \"message\",\n\n        content:\n            \"Please create a Telegram username first.\"\n\n    };\n\n    return msg;\n\n}\n\n/* Get existing users */\nlet users =\n    global.get(\"registeredUsers\") || {};\n\n/* Save user */\nusers[username] = chatId;\n\n/* Store back */\nglobal.set(\n    \"registeredUsers\",\n    users\n);\n\nmsg.payload = {\n\n    chatId: chatId,\n\n    type: \"message\",\n\n    content:\n\n        \"✅ Registration successful.\\n\\nUsername: @\" + username\n\n};\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 550,
+        "y": 140,
+        "wires": [
+            [
+                "4df77e061615b714"
+            ]
+        ]
+    },
+    {
+        "id": "4df77e061615b714",
+        "type": "telegram sender",
+        "z": "e387e4efb3863adb",
+        "name": "Registration Sender",
+        "bot": "8719ef4bd73a86aa",
+        "haserroroutput": false,
+        "outputs": 1,
+        "x": 820,
+        "y": 140,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "6f0da693bfd815dd",
+        "type": "debug",
+        "z": "e387e4efb3863adb",
+        "name": "Debug Telegram Sender",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1070,
+        "y": 560,
         "wires": []
     }
 ]
