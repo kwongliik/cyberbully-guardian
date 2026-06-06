@@ -1176,7 +1176,8 @@
                 "6f0da693bfd815dd"
             ],
             [
-                "8a689ee05c3613cb"
+                "8a689ee05c3613cb",
+                "7952bdadb3d8dcf0"
             ]
         ]
     },
@@ -1266,6 +1267,23 @@
         "statusType": "auto",
         "x": 1070,
         "y": 560,
+        "wires": []
+    },
+    {
+        "id": "7952bdadb3d8dcf0",
+        "type": "debug",
+        "z": "e387e4efb3863adb",
+        "name": "Debug Telegram Sender (Error)",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1070,
+        "y": 700,
         "wires": []
     }
 ]
